@@ -1,0 +1,125 @@
+---
+title: "week-3-assig"
+author: "Lewris Mota"
+date: "February 15, 2019"
+output: html_document
+---
+```{r echo=FALSE}
+
+library(stringr)
+
+```
+
+
+####**Copy the introductory example. The vector name stores the extracted names.**
+```{r}
+raw.data <- "555-1239Moe Szyslak(636) 555-0113Burns, C. Montgomery555
+-6542Rev. Timothy Lovejoy555 8904Ned Flanders636-555-3226Simpson,Homer5553642Dr. Julius Hibbert"
+name <- unlist(str_extract_all(raw.data, "[[:alpha:]., ]{2,}"))
+name
+```
+
+
+**(a) Use the tools of this chapter to rearrange the vector so that all elements conform to
+the standard first_name last_name.**
+```{r}
+
+standard <- paste(str_extract(name,"[^DrRev][:alpha:]{1,}"),str_extract(name,"(?<=[:blank:]|,)[a-zA-Z]{1,}$"))
+standard
+```
+
+
+**(b) Construct a logical vector indicating whether a character has a title (i.e., Rev. and Dr. ).**
+```{r}
+
+has_tittle <- str_detect(name,"(^[a-zA-Z]{1,}\\.)")
+has_tittle
+#titles
+unlist(str_extract_all(name,"(^[a-zA-Z]{1,}\\.)"))
+#vector type
+typeof(has_tittle)
+
+
+```
+
+
+
+**(c) Construct a logical vector indicating whether a character has a second name.**
+```{r}
+
+has_2name <- str_detect(name,"[a-zA-Z]{1,}\\.\\s(?=([a-zA-Z]{1,})$)")
+
+#extract second name
+unlist(str_extract_all(name,"[a-zA-Z]{1,}\\.\\s(?=([a-zA-Z]{1,})$)"))
+
+typeof(has_2name)
+
+```
+
+
+####**Describe the types of strings that conform to the following regular expressions and
+construct an example that is matched by the regular expression.**
+
+**(a) [0-9]+\\$**
+
+Matches a string that has one or more numeric characters followed by a $ sign in that same string
+```{r}
+#true if if numbers and $ are present in the same string one after the other
+str_detect("6685$6","[0-9]+\\$")
+
+#false if the line does not have numbers
+str_detect("$","[0-9]+\\$")
+
+#false if the line does not have $ sign
+str_detect("6685","[0-9]+\\$")
+
+```
+
+**(b)\\b[a-z]{1,4}\\b **
+
+
+Matches any lower case strings that have from 1 to 4 letters/characters
+
+```{r}
+#returns all the matches that have less than 4 lowercase characters
+str_extract_all("I Am trying this reg Expression","\\b[a-z]{1,4}\\b")
+
+```
+
+
+(c).*?\\.txt$
+
+This expression reads a complete string and returns a match if the last string at the end of the line has the .txt characters. 
+```{r}
+#true if at the end
+str_detect("I am lewris.txt",".*?\\.txt$")
+#false if the line does not end with .txt
+str_detect("I am lewris.txt but not at the end",".*?\\.txt$")
+
+
+```
+
+**(d) \\d{2}/\\d{2}/\\d{4}**
+
+Matches any occurence of dates in formats mm/dd/yyyy or dd/mm/yyyy tha appear in any string.
+```{r}
+
+str_extract_all("5505/06/1886, 10/06/1885, 1/2/2016  ","\\d{2}/\\d{2}/\\d{4}")
+
+
+
+```
+
+
+**(e) <(.+?)>.+?</\\1>**
+
+Matches any occurence of a strings properly formated as html tags with opening and closing tags that are not empty. The content between html tags is returned even if more html tags are present.
+```{r}
+
+str_extract_all("<empty></empty>><tittle>aaaa</tittle>","<(.+?)>.+?</\\1>")
+#tags inside tags are also returned
+str_extract_all("<empty></empty>><tittle>aaaa</tittle><body><h1>trying html tags</h1></body>","<(.+?)>.+?</\\1>")
+
+```
+
+

@@ -1,0 +1,58 @@
+---
+title: "homework-week2"
+author: "lewris Mota"
+date: "February 10, 2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+####**Choose six recent popular movies.  Ask at least five people that you know (friends, family, classmates, imaginary friends) to rate each of these movie that they have seen on a scale of 1 to 5.  Take the results (observations) and store them in a SQL database.  Load the information into an R dataframe.**
+
+
+
+
+```{r , include=FALSE}
+
+library(RMySQL)
+
+```
+
+
+
+```{r}
+conexion <- dbConnect(MySQL(),user="root",password="root", 
+                      dbname="movies", host = "127.0.0.1", port=3306)
+```
+
+####_Tables of Movies Database_
+```{r}
+
+dbListTables(conexion)
+
+```
+
+####_ Load data into the dataframe
+```{r , warning=FALSE}
+
+result_set <- dbSendQuery(conexion,"select movie_name, movie_rating from movies m inner join ratings s on s.movie_id = m.movie_id ")
+
+movies_dt <- fetch(result_set)
+
+movies_dt
+
+```
+
+#### Now lets get the average rating for movies
+
+```{r , warning=FALSE}
+
+result_set <- dbSendQuery(conexion,"select movie_name, AVG(movie_rating) as 'average_rating' from movies m inner join ratings s on s.movie_id = m.movie_id group by movie_name")
+
+movies_dt <- fetch(result_set)
+
+movies_dt
+
+```
+
+

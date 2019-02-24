@@ -1,0 +1,85 @@
+---
+title: "lmota-week1-mushroom"
+author: "lewris Mota"
+date: "February 1, 2019"
+output: html_document
+---
+
+## create headers of the new dataframe
+
+```{r}
+mushroom_hd <- c("mushroom_class","cap-shape","cap-surface","cap-color","bruises ?","odor",
+                 "gill_attachment","gill_spacing","gill_size","gill_color","stalk_shape",
+                 "stalk_root","stalk_surface_above_ring","stalk_surface_below_ring","stalk_color_above_ring",
+                 "stalk_color_below_ring","veil_type","veil_color","ring_number","ring_type","spore_print_color","population","habitat"
+                 )
+```
+
+## Read mushroom's dataframe from web repository
+```{r}
+mushroom_dt <-read.csv(file = "mushroom.csv",col.names = mushroom_hd,header = FALSE,check.names = FALSE, stringsAsFactors = FALSE)
+
+
+```
+
+## Read webpage 
+```{r}
+htmlPage <- readLines("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/agaricus-lepiota.names")
+```
+
+
+
+## transform the dataset
+
+```{r}
+
+twoheader <- c("cap-surface")
+
+
+for (header_in in mushroom_headers) {
+  level <- levels(as.factor(mushroom_dt[,header_in]))
+  pageSearch <- grep(header_in,htmlPage,value = TRUE)
+
+  print("level before")
+
+  print(level)
+
+    for (index in level) {
+      print(pageSearch)
+      print("level inside")
+
+      print(level)
+      expr <- paste("[^\\s][\\w]{1,}[=][",index,"]",sep ="") 
+
+      if (str_detect(pageSearch,expr)){
+      
+           a <- str_extract(pgSearch,expr)
+           b <- str_extract(a,"[a-zA-Z]{1,}")
+           print(b)
+        
+           mushroom_dt[header_in][mushroom_dt[header_in] == index] <- b
+          
+      } else { print("Not found")    }
+   } 
+
+}
+```
+
+
+
+
+```{r}
+  print(newframe[3])
+  newframe["cap-surface"][newframe["cap-surface"]== "s"] <- "hello"
+  print(newframe[3])
+
+  #print(newframe["cap-surface"][newframe["cap-surface"]=="s"])
+    level <- levels(as.factor(mushroom_dt[,header_in]))
+  print(level)
+
+```
+
+
+
+
+

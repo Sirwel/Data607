@@ -1,0 +1,183 @@
+---
+title: "Data wrangling Project 1"
+author: "lewris Mota"
+date: "February 15, 2019"
+output: 
+  html_document:
+    css: project1/style.css
+
+---
+
+```{r, echo=FALSE}
+
+library(stringr)
+library(kableExtra)
+library(ggplot2)
+
+```
+
+```{r echo=FALSE, out.width='100%', out.height='80%'}
+knitr::include_graphics('project1/Kathu-Chess-pic.jpg')
+```
+
+
+##***Project 1: Data Wrangling***
+
+In this project, you’re given a text file with chess tournament results where the information has some structure. Your
+job is to create an R Markdown file that generates a .CSV file (that could for example be imported into a SQL database)
+with the following information for all of the players:
+
+Player’s Name, Player’s State, Total Number of Points, Player’s Pre-Rating, and Average Pre Chess Rating of Opponents
+For the first player, the information would be:
+
+Gary Hua, ON, 6.0, 1794, 1605
+
+1605 was calculated by using the pre-tournament opponents’ ratings of 1436, 1563, 1600, 1610, 1649, 1663, 1716, and
+dividing by the total number of games played.
+
+The chess rating system (invented by a Minnesota statistician named Arpad Elo) has been used in many other contexts,
+including assessing relative strength of employment candidates by human resource departments.
+
+###***Data Loading*** { .tabset .tabset-fade }
+
+####Getting the data
+
+
+File loaded from local directory or online repository.
+```{r}
+
+tournament_data <- readLines("https://raw.githubusercontent.com/Sirwel/Data607/master/project-1/tournamentinfo.txt",warn = FALSE)
+
+```
+
+####Data Capture File
+
+
+Source used for data extraction
+```{r}
+
+tournament_data
+
+```
+
+##***Data Extraction***
+
+
+Using regex to extract data for each column of the dataframe.
+
+```{r echo=T, results='hide'}
+
+#these regular expressions relies on the use of back references to find the strings present in the file that are delimited or preceded by bars | and/or spaces.
+
+#Extracts players' ids
+player_id <-unlist(str_extract_all(tournament_data,"[0-9]{1,}(?=\\s\\|)"))
+
+#Extracts players' names
+player_name <-unlist(str_extract_all(tournament_data,"((?<=([[0-9]{1,}]\\s\\|\\s))[a-zA-Z]{1,}(\\s[a-zA-Z]{1,})?\\s[a-zA-Z]{1,})"))
+
+#Extracts players' average points 
+player_points <-as.numeric( unlist(str_extract_all(tournament_data,"([0-9]\\.[0-9])")))
+
+#Extracts players' state delimited by space and a bar
+player_state  <- unlist(str_extract_all(tournament_data,"(\\b[A-Z]{1,}(?=\\s\\|))"))
+
+#Extracts players' rating string which is preceded by R:
+player_rating <- as.numeric(unlist(str_extract_all(tournament_data,"(?<=R:)\\s.?([0-9]{1,})")))
+
+#dataframe that stores each player data
+players_df <- data.frame(
+  player_id,
+  player_name,
+  player_state,
+  player_points,
+  player_rating,
+  stringsAsFactors = FALSE
+)
+
+```
+
+
+Finding the opponent scores for a particular player in the dataframe and then computing the avergage 
+
+```{r echo=T, results='hide'}
+
+#vector to store the ratings of the players faced by a particular player. This will be later used to compute the average oponent rating
+avg_op_ratings <- vector()
+
+for(pl_name in player_name) {
+  pattern <- grep(pl_name,tournament_data,value = TRUE)
+  #extract the id of the players indicated by the number of wins, loses or draws.
+  record <- as.numeric(str_trim(unlist(str_extract_all(pattern,"(?<=(W|D|L))\\s{1,}([0-9]{1,})"))))
+  #get the data from the dataframe where the row number is equals to the players' number and stores the pre rating values to compute the average
+  avg_op_ratings <- c(avg_op_ratings, mean(as.integer(players_df[record,5])))
+
+}
+
+#add the new column to the dataframe 
+players_df <- cbind(players_df,avg_op_ratings)
+
+
+
+```
+
+
+
+
+##***Generated Dataframe***
+
+Display of data processed by R including new computed columns.
+
+```{r}
+scroll_box(
+      kable_styling(
+          kable(players_df), full_width = TRUE, bootstrap_options = c("striped","hover") ),
+          width = "100%", height = "400px" 
+      )
+
+```
+###***CSV File Creator***
+
+
+```{r}
+#creates csv file in your working directory or in the specific path as shown below
+write.csv(players_df,"project1/chess_players_dt.csv")
+
+```
+
+
+
+###***Data visualization***
+
+
+
+This graph shows all the chess players arranged according to their rating.
+
+<div class="superbigimage">
+```{r , fig.width=10, fig.height=8, echo=FALSE}
+
+
+
+
+
+ggplot(players_df, aes(x = reorder(player_name,player_rating), y = player_rating))+geom_bar(stat = "identity",width = 0.8, fill="steelblue")+labs(title = "Chess Players Pre-Ratings")+xlab("Player Names")+ylab("Player Ratings")+theme(axis.text.x = element_text(hjust = 1, size = 12),axis.text.y = element_text(hjust = 1, size = 9))+coord_flip()
+
+```
+</div>
+
+###***Players grouped by points.***
+
+This graph shows all the chess players arranged on groups according to their number of points. The players in dark purple color show the highest number of points.
+
+
+<div class="superbigimage">
+```{r, fig.width=9, fig.height=10, echo= FALSE  }
+
+
+ggplot(players_df, aes(x= reorder(player_name,-player_points), y= player_points,   fill= as.factor(player_points)))+geom_bar(stat = "identity",width = 1,position = position_dodge())+labs(title = "Chess Players Number of Points")+xlab("Player Names")+ylab("Player Points")+theme(axis.text.x = element_text(hjust = 1, size = 12),axis.text.y = element_text(hjust = 1, size = 9))+coord_flip()+scale_fill_discrete(name="Points")
+
+
+
+```
+</div>
+
+

@@ -1,0 +1,13 @@
+  .superbigimage{
+      overflow-x:scroll;
+      white-space: nowrap;
+  }
+
+  .superbigimage img{
+     max-width: none;
+  }
+  
+  body{
+    font-size:16px;
+    
+  }

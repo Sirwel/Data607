@@ -1,0 +1,95 @@
+---
+title: "Data607-Week-5"
+author: "Lewris Mota"
+date: "March 3, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+library(tidyverse)
+library(zoo)
+```
+
+
+###Data Loading { .tabset}
+
+#### Loading Data
+
+Loading the dataframe as a csv file which is in wide format with missing values.
+```{r}
+
+flights_dt <- as_tibble( read.csv("flights data.csv", stringsAsFactors = FALSE,na.strings = c("","N/A")))
+
+```
+
+####Data
+
+Display of the CSV file structure.
+```{r}
+kable(flights_dt)
+```
+
+
+
+
+###Data Tidying
+
+Column names for the first two columns are missing. Therefore, it is neccesary to create two columns names in order to transform the dataframe
+
+```{r}
+names(flights_dt)[1:2] <- c("Airline","Status")
+
+```
+
+
+*Since the destination state from airlines are displayed as column names, the gather function will collapse such states in a row format. The Destination column that will be creared by gather displays the name of the state and the fl_no column displays the number of flighs for each category labeled as "On Time" or "Delayed". In addition, it removes the empty line that divides both airlines data.*
+```{r}
+flights_data <- flights_dt %>% gather("Destination","fl_no",3:7,na.rm = TRUE)
+flights_data
+```
+
+*As shown above, Airline have missing values that correspond to the association of airlines with its respective status(each NA value should have the same airline name as the field above it). In addition, values that represent the number of flights delayed and on time should be displayed in a single row representing the destination of the number of flights and its respective status and airline.*
+
+```{r}
+
+flights_final <-  flights_data %>% 
+  select(Destination,Status,fl_no) %>% # selects the destination , the status and the number of flights
+  group_by(Status) %>%  # group those flights according to the status, which  causes that flights going to certain places are grouping together. Finally, A row that works as an index for the new dataframe should be added because it is needed for spreading the data eventually
+  mutate(id = row_number())
+
+
+flights_final
+```
+
+
+***Then, the column status shown above is broken into two columns that represents the flights delayed and on time going to a specific state. Then, all the fields are selected except the field created for indexing.***
+
+```{r}
+flights_final <- flights_final %>% 
+  spread(Status,fl_no) %>% 
+  select(-id)
+
+flights_final
+```
+
+*Finally, since the airline column was missing, a factor which identifies all the airlines present in the data needs to be created to  be added as a column for the transformed dataframe. Since the structure of the dataframe has two rows representing the states names (on individual state for one airline), the factor that contains two levels will be replicated 10 times to match the number of rows in the new dataframe.*
+
+```{r}
+Airlines <- flights_data$Airline %>% as.factor() %>% na.omit() %>%  levels()
+flights_final <- flights_final %>% add_column(Airline = rep(Airlines,5), .before = "Destination")
+```
+
+*Finally, the processed dataframe is shown.*
+```{r}
+kable(flights_final,align = "c")
+```
+
+
+
+
+
+
+
+

@@ -1,0 +1,119 @@
+---
+title: "Project2-D1"
+author: "Lewris Mota"
+date: "March 4, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+library(tidyverse)
+library(zoo)
+```
+
+Create a .CSV file (or optionally, a MySQL database!) that includes all of the information
+included in the dataset. You’re encouraged to use a “wide” structure similar to how the
+information appears in the discussion item, so that you can practice tidying and
+transformations as described below.
+
+Read the information from your .CSV file into R, and use tidyr and dplyr as needed to tidy and transform your data.
+
+Perform the analysis requested in the discussion item. Your code should be in an R Markdown file, posted to rpubs.com, and should include narrative descriptions of your data cleanup work, analysis, and conclusions.
+
+
+###Data load { .tabset}
+
+
+####Data Preparation
+
+Loading data from the csv file. Minus sings and empty spaces the data as well as string in numeric fields suggest that data was null or unavailable from the original source and therefore, unable of being predicted in its totality. 
+```{r message=FALSE}
+header <- c("Type","Model",1941:1951)
+ww2_data <- read_csv("RawCost.csv", col_names = header,skip = 1,na = c("","-"))
+
+
+```
+
+####Original Data Frame
+
+Display of the dataframe read from the csv file.
+```{r}
+ww2_data %>% 
+  kable() %>% 
+  kable_styling() %>%
+  scroll_box(width = "300")
+```
+
+### Data Wrangling
+
+For cleaning this dataset, the column year were collapsed and the price column used for storing the value of such planes. then the columns corresponding to a type of plane that are missing are populated using the fill function to fill the empty rows with the value of the previous cell that was not empty.In this way the information will look complete. Finally, since this csv file came from an very old document that dates from the WW2, lots of data is missing in addition to incomplete information about values of certain fields, therefore, I am removing them from the data frame.
+
+```{r}
+
+
+ww2_cl <- ww2_data %>% 
+      gather("Year","Price",3:13) %>% 
+      fill(Type,.direction = "down") %>% 
+      filter(Model != "N/A")
+
+```
+
+
+### Data Display
+
+This table displays each type of flight with its corresponding model, year and price.
+```{r}
+ww2_cl %>% 
+  kable() %>% 
+  kable_styling() %>%
+  scroll_box(width = "100%",height = "320px")
+```
+
+###Data Analysis
+
+To beging with the short analysis, lets filter the cost of planes over the time. In this case, since there are too many planes to be graph and most of the with information missing, I am going to display Fighter planes which are more complete.
+
+```{r}
+planes_cost <- ww2_cl %>% 
+filter(.$Type == "Fighters" & !is.na(.$Price) )
+
+planes_cost  %>% 
+  kable() %>% 
+  kable_styling() %>%
+  scroll_box(width = "100%",height = "320px")
+```
+
+
+```{r}
+
+   ggplot(data = planes_cost,aes(x = Year, y = as.numeric(Price)*1000,group = Model, color = Model))+geom_line(stat = "identity",size=1.6)+theme_get()+theme(plot.title = element_text(hjust = 0.5),text=element_text(size=13, family="Times"))+ggtitle("Cost of WW2 Fighters")+ylab("Cost ($K)")+xlab("Year")
+
+
+```
+
+
+As shown in the graph, plane models increased and decreased their price over time. Planes like P-61 (Light Blue Color) decreased its production prize since 1941 to 1943.Its production increased drastically from 1945 to 1946 and decreased exponentially until 1948.
+
+Now lets check the summary statistics for the price of planes from 1941 to 1950 time frame.
+
+```{r}
+planes_cost$Price %>% as.numeric() %>% summary()*1000
+
+```
+ 
+ As shown in the summary, the most expensive plane to produce costed 985,000$ dollars at that time wheras the average price was about 189500$. The minimun cost for a fighter plane was 44000$.
+ 
+```{r}
+   ggplot(data = planes_cost,aes(x = Year, y = as.numeric(Price)*1000))+geom_boxplot()+theme_get()+theme(plot.title = element_text(hjust = 0.5),text=element_text(size=13, family="Times"))+ggtitle("Cost of WW2 Fighters")+ylab("Cost ($K)")+xlab("Year")
+```
+
+As shown in the graph above, the higest production of fighter planes was carried out in 1947, 1949 with most of them being cheaper than the rest. On the other hand, years 1943, 1946 and 1948
+produced more expensive planes according to the production for that year. Year 1950 should be ommited because there is only one observation.
+
+###Conclusion
+
+As shown in the graph above,the production of planes varied over the years. The decrease in the cost of production of planes over the time may be due to mass production required to fulfill the requeriments for the time war whereas the exponential increase in the price of such planes correlates with the fact that due to war certain resurces were more expensive and therefore, more costly to produce.
+
+
+

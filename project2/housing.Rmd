@@ -1,0 +1,114 @@
+---
+title: "Housing_DataP3"
+author: "Lewris Mota"
+date: "March 10, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(kableExtra)
+```
+
+
+
+Create a .CSV file (or optionally, a MySQL database!) that includes all of the information
+included in the dataset. You’re encouraged to use a “wide” structure similar to how the
+information appears in the discussion item, so that you can practice tidying and
+transformations as described below.
+
+Read the information from your .CSV file into R, and use tidyr and dplyr as needed to tidy and transform your data.
+
+Perform the analysis requested in the discussion item. Your code should be in an R Markdown file, posted to rpubs.com, and should include narrative descriptions of your data cleanup work, analysis, and conclusions.
+
+
+### Data Loading {  .tabset}
+
+
+####Dataset Preparation
+
+Reading the Dataframe from a local CSV file.
+```{r}
+
+house_dt <- read.csv("State_MedianRentalPricePerSqft_AllHomes.csv",stringsAsFactors = FALSE)
+
+
+```
+
+
+####Original Dataset Dispplay
+
+
+```{r}
+
+house_dt %>%
+ kable() %>% 
+          kable_styling(full_width = TRUE) %>% 
+          scroll_box(width = "300")
+
+```
+
+
+###Data Wrangling
+
+The first step to process the dataset is to convert all the years presented in the column as a row. Then the price field will store the corresponding values for each year. Then the months are grouped according to their combination of year and month and then a row that works as an index for the new dataframe is added because it is needed for spreading the data again and show each variable according to their month.Finally, all the rows are selected except the id generated for grouping purposes.
+
+```{r}
+
+house_dt2 <- house_dt %>% gather("Year","Price",3:14) %>% 
+  group_by(Year) %>%  mutate(idx=row_number()) %>% arrange(idx) %>% select(-idx)
+
+```
+
+Finally, columns year and month that were tied together are separated using the extract function in order to explit them in two columns.
+```{r}
+house_dt2 <- house_dt2 %>% extract(Year,c("Year","Month"),"([0-9].+(?=\\.)).([0-9]{1,})")
+
+```
+
+Display of the processed dataframe.
+```{r}
+house_dt2 %>%
+ kable() %>% 
+          kable_styling(full_width = TRUE) %>% 
+          scroll_box(width = "100",height = "400px")
+
+```
+
+
+###Analysis
+
+
+For the analysis part,I am going to check
+
+Average price in New York City for each month of 2018
+```{r}
+
+new_y <- house_dt2 %>% filter(RegionName == "New York")
+
+new_y %>% 
+  ggplot(aes(x = Month, y = as.numeric(Price)))+geom_bar(stat = "identity")+labs(title = "Average Home Prices for New York by Month")+xlab("Months")+ylab("Price")
+
+
+```
+
+As show in the graph the distribution of prices during the year was nearly uniform which suggest that prices oscillates about the same range of prices.
+
+```{r, fig.width=10, fig.height=12}
+states_m <- c()
+states <-  levels(as.factor(house_dt2$RegionName))
+#this loop summarises the mean prices for each state and save them in order to plot them lately
+for (i in states) {
+  states_m <- c(states_m,  
+                house_dt2 %>% 
+                summarise(mean= mean(.$Price[.$RegionName==i]))
+                )
+}
+
+ ggplot(NULL,aes(x = reorder(states,as.numeric(states_m)), y = states_m))+geom_bar(stat = "identity")+labs(title = "Average Home Prices for US states ")+xlab("Price")+ylab("State")+coord_flip()
+
+
+```
+
+As shown in the graph, the most explensive rent belongs to New York City and secondly the Distric of Culumbia. At the end, Alabama and Arkansas are the places with cheaper rent per square feet.

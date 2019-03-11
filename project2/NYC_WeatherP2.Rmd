@@ -1,0 +1,207 @@
+---
+title: "NYC_WeatherP2"
+author: "Lewris Mota"
+date: "March 5, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rvest)
+library(kableExtra)
+
+```
+
+
+
+
+Create a .CSV file (or optionally, a MySQL database!) that includes all of the information
+included in the dataset. You’re encouraged to use a “wide” structure similar to how the
+information appears in the discussion item, so that you can practice tidying and
+transformations as described below.
+
+Read the information from your .CSV file into R, and use tidyr and dplyr as needed to tidy and transform your data.
+
+Perform the analysis requested in the discussion item. Your code should be in an R Markdown file, posted to rpubs.com, and should include narrative descriptions of your data cleanup work, analysis, and conclusions.
+
+
+### Data Loading {  .tabset}
+
+
+####Dataset Preparation
+
+For This dataset, I am reading the information from a web table located in wikipedia. Using the html_node function for reading the tables and then choosing the 3rd table which is the one we are interested in. Finally, since the headers where presented as a row in the web table, the setNames is setting the second row as a header and then slice a row that was displayed as a footer for the table.
+```{r }
+nyc_climate <- read_html("https://en.wikipedia.org/wiki/Climate_of_New_York",encoding = "UTF-8") %>% 
+
+html_nodes("table") %>% 
+  .[[3]] %>% 
+  html_table(header = FALSE) %>%
+  setNames(.[2,]) %>% 
+  slice(3:(n()-1))
+
+
+```
+
+Original Dataframe Display
+```{r echo=FALSE}
+nyc_climate %>% 
+  kable() %>% 
+  kable_styling() %>%
+  add_header_above(c("Climate data for Albany International Airport, New York (1981–2010 normals, extremes 1874–present)"=14)) %>% 
+  scroll_box(width = "300")
+```
+
+####Original Dataset
+
+![](Screenshot from 2019-03-05 23-40-34.png)
+
+###Post Processed Dataset 
+
+The first step to process the dataset is to convert all the months presented in the column as a row. Then the temperature field will store the corresponding values for each month. Then the months are grouped according to their respective characteristics (variables like Record High Temperature, Mean Minimum, etc.. ) and then 
+a row that works as an index for the new dataframe is added because it is needed for spreading the data again and show each variable according to their month.Finally, all the rows are selected except the id generated for grouping purposes.
+
+```{r}
+
+nyc_climate <- nyc_climate %>% 
+gather("Months","Temperature",2:14) %>% 
+  group_by(Month) %>% 
+  mutate(id=row_number()) %>% 
+  spread(Month,Temperature) %>% 
+  arrange(id) %>% 
+  select(-id) 
+
+```
+
+In this part the code iterates over the columns of the dataframe in order to separate the Fahrenheit and Celsius values (in parenthesis)from each field and rows that contains such values.Then, it generates the column headers for the new columns according the name extracted from the original column and name the accordingly.Finally, the code slices the dataframe ignoring the last row since it is not needed for calculations
+
+```{r}
+
+
+headers <- nyc_climate %>%  names()
+nyc_clFinal <- nyc_climate 
+fields_to_rm <- c()
+
+for ( i in 1:length(names(nyc_climate))) {
+  
+  if (str_detect(headers[i],"(.*)(?=[^a-zA-Z][F])")) {
+    
+    fields_to_rm <- c(fields_to_rm,i)
+    
+    celsius <- nyc_climate[[i]] %>% str_extract("(?<=\\()(.*)(?=\\))") %>% 
+      str_replace(".*\\−","-")
+    fahrenh <- nyc_climate[[i]] %>%  str_extract(".*(?=\\()") %>% 
+      str_replace(".*\\−","-")
+    
+    title <- str_extract(headers[i],"(.*)(?=[^a-zA-Z][F])")
+
+    nyc_clFinal <- nyc_clFinal %>% 
+      mutate(celsius_f=celsius, fahrenh_f=fahrenh)
+    
+    leng <- length(names(nyc_clFinal))
+    
+    names(nyc_clFinal)[c(leng-1,leng)] <-  c(paste(title,"Celsius"),paste(title,"Fahrenh"))
+    
+  }  
+
+}
+nyc_clFinal <- nyc_clFinal %>% slice(1:n()-1) %>% 
+  select(-fields_to_rm)
+
+```
+
+###Final Dataset Display
+
+
+In this dataset, temperature related variable are split from its original two in one field format. However, variables like "Average Precipitation" where left as is since will not be used for the analysis.
+```{r echo=FALSE}
+
+nyc_clFinal %>% 
+          kable() %>% 
+          kable_styling(full_width = TRUE) %>% 
+            add_header_above(c("Climate data for Albany International Airport, New York (1981–2010 normals, extremes 1874–present)"=length(nyc_clFinal))) %>% 
+  scroll_box(width = "300")
+
+
+```
+
+
+Save as a CSV File
+```{r}
+
+write.csv(nyc_clFinal,file = "climate_data.csv")
+
+```
+
+
+
+###Analysis
+
+This sections shows the average celsius temperature.
+
+According to the graph, during the last years, January has been the coldest month with temperatures under 0 whereas July has been the hottest month with temperature above 27 grades celsius.
+
+```{r}
+pl <- nyc_clFinal %>% 
+ggplot(aes(y = as.numeric(nyc_clFinal$`Average high  Celsius`),x = .$Months))+geom_bar(stat = "identity")+coord_flip()+labs(title = "Average High Monthly Celsius Temperatures 1.1")+xlab(label = "Months")+ylab(label = "Temperature in celsius")
+pl+scale_y_continuous(limits = c(-1,30))
+
+```
+
+
+Since temperature decreases during the night, lets check how many hours of light a particular month had. Assuming that less light means more lower temperatures.
+
+```{r echo=FALSE}
+nyc_clFinal %>% 
+ggplot(aes(y = as.numeric(nyc_clFinal$`Mean monthly sunshine hours`),
+           x = .$Months))+geom_bar(stat = "identity")+labs(title = "Sun hours by month 1.2")+xlab(label = "Months")+ylab(label = "Sun Hours")+coord_flip()
+
+
+
+```
+
+
+As we can compare with the graph 1.1, months like November, December and January which that are supposed to receive less sun light are the more cold. However, thats not always the case. The next graph shows the average probability of sunshine for arch month during the last years. 
+
+
+```{r echo=FALSE}
+nyc_clFinal %>% 
+ggplot(aes(y = as.numeric(nyc_clFinal$`Percent possible sunshine`),x = .$Months))+geom_bar(stat = "identity")+labs(title = "Sun hours by month 1.3")+xlab(label = "Months")+ylab(label = "Sun Hours Probability")
+
+```
+
+On average, the average probability of possible sunshine was almost uniform across the years.
+
+On the other hand, according to the probabilities, more hours were expected for each month. Lets calculate those hours.
+
+```{r}
+sun_per <- as.numeric(nyc_clFinal$`Percent possible sunshine`)/100
+
+days <- c(31,28,31,30,31,30,31,31,30,31,30,31) # days for months
+ 
+#multiply the number of day for each month with its corresponding probability
+nyc_clFinal <- nyc_clFinal %>% mutate(days,sun_per) %>% 
+                mutate(expected_hours=(.$sun_per*.$days)*24)
+
+nyc_clFinal %>% 
+ggplot(aes(y = as.numeric(.$expected_hours),x = .$Months))+geom_bar(stat = "identity")+labs(title = "Expected Sun hours by month")+xlab(label = "Months")+ylab(label = "Sun Hours Probability")+coord_flip()
+
+```
+
+
+As Compared to graph 1.3, months like november that had about 37 hours of ligth were expecting about 230 hours of light as would expected from its initial probability and months like July that had about 290 hours of light was expecting about 450 hours of light.
+
+Finally, lets calculate the proportion of expected hours of sun for those years. 
+
+```{r}
+(sum(as.numeric(nyc_clFinal$`Mean monthly sunshine hours`)))/(sum(as.numeric(nyc_clFinal$expected_hours)))*100
+
+```
+As shown in the calculations, about the doble of sun light of what we received was expected.
+
+###Conclusion
+
+In conclusion, we can visually reaffirm that months that receive less light tent to be coldest whereas the .
+months that receive more light are the hotter. On the other hand, the probabilities of having or not having long hours of light accross the years where uniform; however, as compared to the expected hours of light, we were supposed to receive at least the double of sun light. One idea the comes to my mind is that one of the reasons for this beyond simple chance, is the effect of globlal warming as product of gasses released in the atmosphere which blocks the percentage of sun light we are supposed to receive.
+

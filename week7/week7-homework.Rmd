@@ -1,0 +1,158 @@
+---
+title: "Week7-Homework"
+author: "Lewris Mota"
+date: "March 17, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(RCurl)
+library(RJSONIO)
+library(XML)
+library(kableExtra)
+```
+
+Pick three of your favorite books on one of your favorite subjects. At least one of the books should have more than one author. For each book, include the title, authors, and two or three other attributes that you find interesting.
+
+Take the information that you’ve selected about these three books, and separately create three files which store the book’s information in HTML (using an html table), XML, and JSON formats (e.g. “books.html”, “books.xml”, and “books.json”).
+
+To help you better understand the different file structures, I’d prefer that you create each of these files “by hand” unless you’re already very comfortable with the file formats.
+
+Write R code, using your packages of choice, to load the information from each of the three sources into separate R data frames. Are the three data frames identical?
+
+###Json File { .tabset}
+
+
+####Reading XML file:
+```{r}
+xmlBooks <- xmlTreeParse("books.xml")
+```
+####Class of the file:
+
+As shown the file is a XML file.
+```{r}
+xmlBooks %>% class()
+```
+
+####Json data Display
+
+As show the data is not clean.
+```{r}
+xmlBooks
+```
+
+####Cleaning Json file:
+
+```{r, warning=FALSE}
+#Transform xml nodes in a list
+xmlTop <- xmlSApply(xmlBooks,function(x) xmlSApply(x,xmlValue))
+
+book_dt <- data.frame(xmlTop)
+
+#Adds row names as a column
+book_dt <- book_dt %>% rownames_to_column()
+
+#creates a dataframe by transposing the values in the dataframe and then slices the dataframe starting from the second record since the first record correspond to the headers 
+bookJson_dt <- book_dt %>% t() %>% as_tibble() %>% slice(2:n())
+
+
+
+```
+
+####Transformed Dataframe Display:
+
+```{r}
+#Assings headers for the dataframe
+headers <- book_dt[,1]
+names(bookJson_dt) <- headers
+
+bookJson_dt %>% 
+            kable() %>% 
+          kable_styling(full_width = TRUE) %>% 
+          scroll_box(width = "300")
+```
+
+
+***
+###Json File { .tabset}
+
+####Reading JSON file:
+```{r}
+jsonBooks <- fromJSON("books.json")
+```
+####Class of the file:
+
+As shown the file is a XML file.
+```{r}
+jsonBooks %>% class()
+```
+
+####Json data Display
+
+As show the data is not clean.
+```{r}
+jsonBooks
+```
+
+####Cleaning Json file:
+
+```{r, warning=FALSE}
+#Transform json nodes in a list
+
+df <- lapply(jsonBooks, function(x) # Loop through each "play"
+  {
+  # Convert each group to a data frame.
+  # This assumes you have 6 elements each time
+  data.frame(matrix(unlist(x), ncol=6, byrow=T))
+  })
+
+# Now you have a list of data frames, connect them together in
+# one single dataframe
+jsonBooks <- do.call(rbind, df)
+```
+
+
+
+
+####Transformed Dataframe Display:
+
+```{r}
+names(jsonBooks) <- headers
+
+jsonBooks %>% 
+  kable() %>% 
+  kable_styling(full_width = TRUE) %>% 
+  scroll_box(width = "300")
+```
+
+
+###HTML File { .tabset}
+
+####Reading JSON file:
+```{r}
+htmlBooks <- readHTMLTable("bookshtml.html")
+```
+####Class of the file:
+
+As shown the file is a XML file.
+```{r}
+htmlBooks %>% class()
+```
+
+####Transformed Dataframe Display:
+
+No tidying was needed.Therefore, this is the dataframe.
+
+```{r}
+
+htmlBooks[[1]]  %>% 
+  kable() %>% 
+  kable_styling(full_width = TRUE) %>% 
+  scroll_box(width = "300")
+```
+
+###Conclusion
+
+The output for all the files contains the same data. The only difference is that the function for reading html and json returns a list of objects whereas the xml files are read as such. On the other hand, the three formats need to be parsed and tidied in order to create a dataframe that stores the data correctly.

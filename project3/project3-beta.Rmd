@@ -1,0 +1,309 @@
+---
+title: "Data Science Skills"
+author: "Jim Ng, Lewris Mota, Suma Gopal, Fernando Figueres"
+date: "March 22, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(kableExtra)
+library(plyr)
+library(Hmisc)
+library(sqldf)
+
+
+```
+***
+###Data Acquisition { .tabset}
+
+#### Data loading
+
+In this stage, the original dataframe will be loaded into the environment in order to start the cleaning process.
+
+```{r}
+indeed_dt <- read.csv("indeed_job_dataset.csv", stringsAsFactors = F)
+# clean up header
+names(indeed_dt) <- tolower(names(indeed_dt))
+
+```
+
+####  Original Dataset Display
+
+Dimensions:
+```{r}
+dim(indeed_dt)
+
+```
+
+
+Display of the first 50 rows from the data.
+```{r, echo=FALSE}
+indeed_dt %>%
+  head(.,n=50) %>% 
+  kable() %>%
+  kable_styling()%>%
+  scroll_box(width = "100%",height = "300px")
+```
+
+
+### Transformations
+
+```{r, warning=FALSE}
+
+indeed_dt <- indeed_dt %>%
+              mutate(jk_id = str_extract_all(link, pattern = "jk=[[:alnum:]]+&") %>% 
+                              str_replace_all(., pattern = "jk=|&", replacement = ""),
+                      fcc_id = str_extract_all(link, pattern = "fccid=[[:alnum:]]+&") %>% 
+                              str_replace_all(., pattern = "fccid=|&", replacement = ""))
+
+```
+
+```{r}
+
+
+#indeed_dt %>% head()
+sapply(list(indeed_dt$jk_id, indeed_dt$fcc_id), function(x){length(unique(x))})
+
+
+```
+
+
+```{r}
+# lookup both Ids, some links are missing the "jk_id"
+jk_id.lookup <- plyr::count(indeed_dt, "jk_id") %>% arrange(desc(freq))
+table(jk_id.lookup$freq); 
+#head(jk_id.lookup)
+
+```
+
+```{r}
+# "fcc_id" can be duplicated because the same company can post the same job position with different attributes, most likely offering the same position in different locations
+fcc_id.lookup <- count(indeed_dt, "fcc_id") %>% arrange(desc(freq))
+#head(fcc_id.lookup)
+
+```
+
+```{r}
+# the result indicates that each "jk_id" is unique in the data set; there is no duplication for any "jk_id"
+# however, 99 jobs have missing "jk_id"
+# why? what are these 99 jobs? 
+
+jk_id.missing <- indeed_dt %>%
+        filter(jk_id == "character(0)") 
+
+```
+
+```{r}
+# let's fix these "jk_id" - these are written differently as there's no "jk=" in these links        
+# e.g. https://www.indeed.com/company/Wag!/jobs/Data-Engineer-0633d6309b9f2be8?fccid=381733c3e1596619&vjs=3
+jk_id.missing <- jk_id.missing %>%
+        dplyr::mutate(jk_id = str_extract_all(jk_id.missing$link, pattern = "-[[:alnum:]]+\\?fccid") %>%
+                              str_replace_all(., pattern = "-|\\?fccid", replacement = ""))
+
+
+
+```
+
+```{r}
+# let's 'union all' both sets
+indeed_dt <- indeed_dt %>%
+        dplyr::filter(x %nin% jk_id.missing$x) %>%
+        dplyr::bind_rows(., jk_id.missing)
+
+```
+***
+### Data Normalization
+
+we are going to create a simple star schema for this data set we need four tables, i.e. "job_post_specific", "job_position", "company", & "description". "job_post_specific" table - "jk_id" is the primary key. Each "jk_id" is unique and that represents a post for one job position from a company.
+
+"job_position" table - beware of the original "fcc_id"! Note, the "job_post_specific" and "job_position" tables are different. The same job position is supposed to share an idential and unique "fcc_id"; however, there can be multiple posting. In other words, we expect to see the same "fcc_id" for multiple "jk_id". For instance, Google posted four identical position "Google AI Resident, 2019 Start (Fixed-Term Employee)" with the same "fcc_id" (a5b4499d9e91a5c6) but four different "jk_id". These four positions were offered in different locations (NY, MA, CA, & WA)
+
+We should consider these four positions as one when counting for skill sets; otherwise, we will inflate our numbers when calculating for the percentage based on skill sets; however, the data is also messy in terms of some companies posted different job positions with the same "fcc_id"! Using Google and the same "fcc_id" (a5b4499d9e91a5c6) as an example, there are actually 40 entries in the data set that share the same "fcc_id"! That simply means that there are different job positions share the same "fcc_id", but we also have identical jobs share the same "fcc_id" with different entries in the data set because they can be offered in different locations
+one extreme case, Booz Allen Hamilton posted 151 different jobs with identical "fcc_id" (4e041af1d0af1bc8)! We must clean up the messy "fcc_id" before splitting up the data set into four tables:
+
+We must 1) remove duplication of identical jobs (job_title, queried_salary, job_type, skill, company), and 2) create unique "fcc_unique_id" as the primary key. Last but not least, we also need to clean up the "company" table by creating a company Id and performing simple Change-Data-Capture
+
+#### Job Position Dataframe
+```{r}
+job_position <- indeed_dt %>%
+        dplyr::select(fcc_id, job_title, queried_salary, job_type, skill, company) %>%
+        dplyr::distinct() %>%
+        # create a "fcc_unique_id" after the dplyr::distinct()
+        dplyr::mutate(fcc_unique_id = paste(row_number(), fcc_id, sep = "_"))
+
+
+
+```
+
+#### Job Post Specific
+```{r}
+job_post_specific <- sqldf("
+select df.jk_id
+, jp.fcc_unique_id
+, df.link
+, df.date_since_posted
+, df.location 
+from job_position jp
+join (
+        select jk_id, fcc_id, job_title, queried_salary, job_type, skill, company
+        , link, date_since_posted, location
+        from indeed_dt
+) df on jp.fcc_id = df.fcc_id
+and jp.job_title = df.job_title 
+and jp.queried_salary = df.queried_salary 
+and jp.job_type = df.job_type 
+and jp.skill = df.skill 
+and jp.company = df.company
+")
+```
+
+```{r}
+#########################
+# clean-up job_position #
+#########################
+# create a company ID
+company_index <- indeed_dt %>%
+        dplyr::select(company) %>%
+        distinct() %>% 
+        arrange(company) %>%
+        dplyr::mutate(company_id = paste("c", row_number(), sep = "_"))
+
+job_position <- job_position %>%
+        dplyr::left_join(., company_index) %>%
+        dplyr::select(fcc_unique_id, job_title, queried_salary, job_type, skill, company_id)
+
+
+```
+```{r}
+###########
+# company #
+###########
+company <- indeed_dt %>%
+        dplyr::select(company, no_of_reviews, no_of_stars, company_revenue, company_employees, company_industry) %>%
+        distinct() %>%
+        dplyr::left_join(., company_index) %>%
+        dplyr::select(company_id, everything()) %>%
+        arrange(company_id)
+
+# perform simple CDC - Chang-Data-Capture
+# get rid of multiple entries by returning the max of "no_of_stars" and "no_of_reviews" b/c we suppose that's the latest update for the company
+company <- sqldf("
+select company_id, company, company_revenue, company_employees, company_industry
+, max(no_of_stars) as no_of_stars
+, max(no_of_reviews) as no_of_reviews
+from company
+group by 1, 2, 3, 4, 5
+order by company
+"
+)    
+```
+####  Description
+```{r}
+
+description <- indeed_dt %>%
+        select(link, description) %>%
+        distinct()
+```
+***
+
+### CSV Parser { .tabset}
+
+For the purpose of speeding up the analysis process, processed dataframe is divided in four csv files that can be analyzed independently and stored in a database later on. In addition, the 10 first rows from each dataframe is displayed separately in tabs.
+
+#### CSV creation
+```{r}
+write.csv(job_position, "job_position.csv", row.names = F)
+write.csv(job_post_specific, "job_post_specific.csv", row.names = F)
+write.csv(company, "company.csv", row.names = F)
+write.csv(description, "description.csv", row.names = F)
+```
+
+#### Job Postion
+```{r echo=FALSE}
+
+job_position %>%
+  head() %>% 
+  kable() %>%
+  kable_styling()%>%
+  scroll_box(width = "100%",height = "300px")
+
+```
+
+
+#### Job Post
+```{r echo=FALSE}
+job_post_specific %>%
+  head() %>% 
+  kable() %>%
+  kable_styling()%>%
+  scroll_box(width = "100%",height = "300px")
+
+```
+
+#### Company
+```{r echo=FALSE}
+company %>%
+  head() %>% 
+  kable() %>%
+  kable_styling()%>%
+  scroll_box(width = "100%",height = "300px")
+```
+
+
+#### Description
+```{r echo=FALSE}
+description %>%
+  head() %>% 
+  kable() %>%
+  kable_styling()%>%
+  scroll_box(width = "100%",height = "300px")
+```
+
+
+### Database Storage
+
+Post your code here Fernando 
+
+### Analysis
+
+
+
+```{r, warning=FALSE}
+skills <-  job_position$skill  %>% str_extract_all("(?<=\\')([a-zA-Z]{1,}).*?(?=\\')")
+
+positionFinal <- data.frame(company_id = rep(job_position$company_id,sapply(skills,length)),
+                            skills=unlist(skills))
+
+positionFinal <- left_join(positionFinal,company,by="company_id")
+
+
+positionFinal <- positionFinal %>% filter(.$company_industry != "")
+
+
+```
+
+
+```{r}
+
+industries <- positionFinal %>% select(skills,company_industry) %>% group_by(company_industry) %>% tally() %>%  top_n(10)
+
+
+
+```
+
+
+Number of skills required by different industries
+```{r}
+industries %>% 
+  ggplot(aes(x = reorder(.$company_industry,.$n),y = .$n))+geom_bar(stat = "identity")+coord_flip()+labs(title = "No. of Skills By Industry")+xlab("Industries")+ylab("Number of skills")
+```
+
+
+Proportion of skills by industry
+```{r}
+skillPro <- positionFinal %>% filter(.$company_industry == industries$company_industry) %>% select(skills,company_industry) %>%  group_by(company_industry)
+
+
+skillPro$skills %>% count() %>% top_n(10)
+```

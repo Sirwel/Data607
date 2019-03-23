@@ -304,6 +304,6 @@ Proportion of skills by industry
 ```{r}
 skillPro <- positionFinal %>% filter(.$company_industry == industries$company_industry) %>% select(skills,company_industry) %>%  group_by(company_industry)
 
-
-skillPro$skills %>% count() %>% top_n(10)
+skill_pro
+skillPro %>% group_by(company_industry) %>% count() 
 ```

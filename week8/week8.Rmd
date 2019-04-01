@@ -1,0 +1,70 @@
+---
+title: "Week8"
+author: "Lewris Mota"
+date: "March 31, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(jsonlite)
+library(tidyverse)
+library(RCurl)
+library(kableExtra)
+```
+
+#### Instructions
+
+The New York Times web site provides a rich set of APIs, as described here: http://developer.nytimes.com/docs
+You’ll need to start by signing up for an API key.
+Your task is to choose one of the New York Times APIs, construct an interface in R to read in the JSON data, and
+transform it to an R dataframe.
+
+#### Load API data
+
+Data is loaded from the web api. The information being read are the 20 best sellers books registered by NYtimes api.
+```{r}
+
+link2 <- "https://api.nytimes.com/svc/books/v3/lists/best-sellers/history.json?api-key=G1cUkg2rCJr5xWog5sRRnePn1JTtUBCZ"
+
+booksDT <- getURL(link2)
+
+```
+
+#### Reading Data
+
+The data is read and converted from json to a list.
+```{r}
+
+bookl <- booksDT %>% fromJSON(simplifyVector = FALSE)
+bookList <- bookl$results 
+```
+
+#### Preparing Dataframe
+```{r}
+
+#getting the headers names from list name
+headers <- bookList[[1]] %>% unlist() %>% names()
+headers <- headers[1:8] %>% as.list()
+
+#empty dataframe for storing json data. This dataframe will have 8 columns.
+books <- data.frame(matrix(ncol = 8))
+names(books) <- headers
+
+
+#data is processed and stored in the dataframe
+for (i in 1:20) {
+  bo <- bookList[[i]][1:8] %>% unlist() %>% as.vector()
+  books <- rbind(books,bo)
+}
+
+```
+
+#### Data Display
+
+
+```{r}
+books %>% na.omit %>% kable() %>% 
+kable_styling()
+```
+

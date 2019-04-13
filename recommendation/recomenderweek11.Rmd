@@ -1,0 +1,45 @@
+---
+title: "Facebook Recomender System"
+author: "Lewris Mota"
+date: "April 13, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+###Overview
+
+Facebook, Inc. is an American online social media and social networking service company. It is based in Menlo Park, California. It was founded by Mark Zuckerberg, along with fellow Harvard College students and roommates Eduardo Saverin, Andrew McCollum, Dustin Moskovitz and Chris Hughes. Facebook uses recommender systems for different parts of the site. For instance, the user timeline uses one algorithm, while the News section and Marketplace sections use other recommenders systems to provide data it thinks is useful to the user. 
+
+
+###Target Users
+
+***What are the target users?***
+
+The target users are the general population, which summarises to any person who primarily wants to user their services in order to communicate with other people. 
+
+###Key Goals
+
+***what are their key goals?***
+
+Facebook primary goals are to connect people with family and friend around the world, and recently  "To give people the power to build community and bring the world closer together". The second goals is to generate profit using user data and advertising products from third parties.
+
+
+###Reverse Engineering
+
+***How their system work?***
+
+Facebook recommender systems uses a techniques called Collaborative filtering (CF). CF is a recommender systems technique that helps people discover items that are most relevant to them based on the idea that the best recommendations come from people who have similar tastes. It uses historical item ratings to predict how someone would rate an item based on likes. At Facebook, this might include pages, groups, events, games, and more. 
+
+
+### Recommendations
+
+***How can I help them to accomplish those goals?***
+
+I think the best recommendation I can make for their recommender system would be to make it more complex. Instead of being a "likes" based recommendation, they should include some text mining/sentiment analysis capabilities in order to increase the effectiveness of their recommendations and in order to confirm that the content they recommend was actually consumed. I believe this is the case because facebook recommender systems most of the times suggest content that was "liked" and "reviewed" by other people, but actually such content was never consumed by them. For instance, I usually find adds about products or online courses that were "approved" by my friends, but when I asked them about such recommendations, they confirmed me that they never bought or consumed such products/services, that most of the times they just happened to have clicked the add or given a like based on the header or some other descriptive text present in the product or add. This scenarios includes items in the marketplace, news and adds also. Because of the previously mentioned reason, I believe that text mining capabilities would be good to confirm the veracity of products consumption and then suggest truly data driven recommendations.
+
+###References
+
+https://code.fb.com/core-data/recommending-items-to-more-than-a-billion-people/

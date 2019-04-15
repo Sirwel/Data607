@@ -1,0 +1,184 @@
+---
+title: "Text Mining"
+author: "Lewris Mota"
+date: "April 2, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+Sys.setlocale('LC_ALL','C')
+
+library(tm)
+library(tidyverse)
+library(caret)
+library(tidytext)
+library(kableExtra)
+library(wordcloud)
+```
+
+
+
+#Data Loading { .tabset}
+
+##Corpus Directory Load
+
+The emails directory contains both spam and ham folders, which are going to be loaded for the classification task.
+```{r}
+
+training_corpus <-  VCorpus(DirSource(directory = "emails/",encoding = "latin1",recursive = TRUE))
+#name of files that are considered spam
+spam_filename <- list.files("emails/spam_2/")
+
+```
+
+##Corpus Summary
+
+***Training Corpus***
+```{r echo=FALSE}
+training_corpus
+```
+
+
+#Corpus cleaning
+
+In this step common cleaning tasks on corpus are performed such as removing special characters, extra spaces, numbers and stop words.
+
+
+###Training corpus preparation.
+```{r}
+training_corpus <- training_corpus %>% tm_map(removeWords,stopwords("english"))
+training_corpus <- training_corpus %>% tm_map(removePunctuation)
+training_corpus <- training_corpus %>% tm_map(content_transformer(tolower))
+training_corpus <- training_corpus %>% tm_map(stripWhitespace)
+training_corpus <- training_corpus %>% tm_map(removeNumbers)
+
+dtm_training <- DocumentTermMatrix(training_corpus)
+dtm_training <- dtm_training %>%  removeSparseTerms(0.99)
+
+```
+
+***Document Term Matrix Cleaning Summary***
+```{r echo=FALSE}
+
+dtm_training
+
+```
+
+
+***
+### Dataset Preparation
+
+In this segment, we are tidying the document term matrix, as well as assigning labels to the emails that are considered spam and ham.
+```{r}
+emails_dt <- dtm_training %>%
+  tidy() %>% 
+  group_by(document) %>%
+  spread(term,count,fill = 0) %>%
+  mutate(email_class= "ham")%>%
+  ungroup()
+
+#assigns spam to the documments that were present in the spam_folder
+emails_dt[emails_dt$document %in% spam_filename,"email_class"] <- "spam" 
+
+emails_dt["email_class"] = as.factor(emails_dt[["email_class"]])
+
+```
+
+###Word Frequency Dataset Overview
+
+This dataset is a overview of the terms present in the dataset, including the documment name were it was seen.
+```{r echo=FALSE}
+emails_dt[1:30,1:15] %>% kable() %>% kable_styling() %>% scroll_box(width = "800px")
+```
+
+
+Now, lets create the training set and the test set for the classifier.
+```{r}
+#sample size
+index <- 1:length(emails_dt)
+
+#uses the 35% of the dataset as the test size
+samp_size <- (NROW(emails_dt)*0.35) %>% ceiling()
+samp_id <-  sample(index,samp_size)
+
+
+#choose all the records except those present in the test set
+spam_train <- emails_dt[-samp_id,]
+
+#choose records that were selected for the testing set
+spam_test <- emails_dt[samp_id,]
+
+```
+
+
+
+### Dataset Training
+
+For training this dataset, the support vector machine algorithm  is being used.
+```{r warning=FALSE}
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+svm_lineal <- train(email_class~.,
+                    data=spam_train[-1],
+                    method="svmLinear",
+                    trControl = trctrl,
+                    tuneLength = 10,
+                    preProcess = c("center", "scale")
+                    )
+
+```
+
+
+***Model:***
+```{r}
+svm_lineal
+```
+
+***Prediction:***
+```{r}
+test_pre <- predict(svm_lineal,newdata = spam_test)
+```
+
+***Confusion matrix:***
+
+This confusion matrix shows the summary of the classified emails.
+```{r}
+confusionMatrix(test_pre,spam_test$email_class)
+```
+
+According to the confussion matrix, the model predicts an email's class with an 99.39% accuracy.
+
+###Email Data Visuals
+
+This sections offers a brief visual summary on the spam and ham data.
+
+
+```{r}
+#labeled dataframe
+cl_edata <- rbind(spam_train,spam_test)
+#long format dataframe
+emails_dt <- dtm_training %>% tidy() 
+spam_freq <- emails_dt[emails_dt$document %in% spam_filename,] %>% top_n(50)
+
+```
+
+There are about the same number of spam and ham emails in the directory.
+```{r, echo= FALSE}
+cl_edata %>% ggplot(aes(x = email_class,fill=.$email_class))+geom_histogram(stat = "count")+theme(legend.position = "none")
+
+```
+
+
+***Wordcloud***
+```{r echo=FALSE, warning=FALSE}
+wordcloud(spam_freq$term,spam_freq$count,max.words = 50)
+```
+
+
+As show in the wordcloud, higer frequency of words in spam emails are those related to html coding and font attributes. 
+
+#Conclusion
+
+In this markdown, I have classified spam and ham emails according to a trained model tested against a test set. Due to lack of knowledge on machine learning algoriths, there may be parameters for the SVM algorithms that were not appropitated for modeling and therefore, contributed to a possible level of accuracy that is not the expected. however, I am confident that the results were nearly close to the expected for this assigment.
+

@@ -1,0 +1,205 @@
+---
+title: "Neo4J Migration"
+author: "Lewris Mota"
+date: "April 23, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(neo4r)
+library(kableExtra)
+library(RMySQL)
+library(visNetwork)
+```
+
+
+##MySQL Database Connection
+```{r}
+connection <- dbConnect(MySQL(),user="root",password="root",db="flights",host="127.0.0.1")
+```
+
+Database Tables:
+```{r}
+dbListTables(connection)
+```
+
+##Table Data { .tabset}
+
+###Airlines:
+```{r}
+airlines<- dbSendQuery(connection,"select * from airlines")
+airlines <- fetch(airlines, n = -1)
+```
+
+
+```{r, echo=FALSE}
+airlines %>% kable() %>% kable_styling()
+```
+###Airports
+
+```{r}
+airports<- dbSendQuery(connection,"select * from airports")
+airports <- fetch(airports, n = -1)
+```
+
+
+
+```{r,echo=FALSE}
+airports %>% kable() %>% kable_styling()
+```
+
+###Weather
+```{r}
+weather<- dbSendQuery(connection,"select * from weather")
+weather <- fetch(weather, n = -1)
+```
+
+
+```{r, echo=FALSE}
+weather %>% head(n=50) %>%  kable() %>% kable_styling()
+```
+
+###Flights
+For this table. only 20 records will be selected since the database consumes a lot of ram for processing the graphs for nodes.
+```{r}
+flights<- dbSendQuery(connection,"select * from flights limit 20")
+flights <- fetch(flights, n = -1)
+```
+
+
+```{r echo=FALSE}
+flights %>% head(n=50) %>%  kable() %>% kable_styling()
+```
+## CSV files 
+
+Saving as csv file for data migration to neo4j
+```{r}
+#set the directory to the import folder in the neo4j folder. Change your path depending of your operating system.In this case, I am using a linux environment.
+setwd("/var/lib/neo4j/import/")
+write.csv(airlines,"airlines.csv",row.names = FALSE)
+write.csv(airports,"airports.csv",row.names = FALSE)
+write.csv(flights,"flights.csv",row.names = FALSE)
+
+```
+
+
+##Neo4J Connection
+
+Parameters for the neo4j connection.
+```{r}
+neo4Con <- neo4j_api$new(url = "http://localhost:7474",user = "neo4j",password = "root")
+
+```
+
+Displaying the database version for checking that the connection was successful.
+```{r}
+neo4Con$get_version()
+```
+
+###Cypher Queries
+
+This queries are used for loading the CSV files that were created and then stablishing a relationship between nodes.
+
+```{r}
+#query for airline table
+cypherAirline <- "load csv with  headers from \"file:///airlines.csv\" as airline create(a1:Carrier {carrier:airline.carrier,name:airline.name})"
+
+#query for airport table
+cypherAirport <- "load csv with  headers from \"file:///airports.csv\" as airport create(a2:airport {airport_name:airport.name,latitude:airport.lat,longitude:airport.lon,code:airport.faa})"
+
+#query for flights table
+cypherFlights <- "load csv with  headers from \"file:///flights.csv\" as flight create(a3:flight {flight_no:flight.flight,carrier:flight.carrier,origin:flight.origin,destination:flight.dest,year:flight.year,month:flight.month,day:flight.day,departure_time:flight.dep_time,arrival_time:flight.arr_time})"
+
+#Relationships------------------
+#Destination airport
+arrival_rel <- "load csv with  headers from \"file:///flights.csv\" as flight match(a3:flight{flight_no:flight.flight}),(a2:airport{code:flight.dest}) create (a3)-[rel:arrives]->(a2) "
+
+#Origin airport
+depart_rel <- "load csv with  headers from \"file:///flights.csv\" as flight match(a3:flight{flight_no:flight.flight}),(a2:airport{code:flight.origin}) create (a3)-[rel:departs]->(a2) "
+
+#return data from the database.
+cypherRe <- "match(n) return n"
+
+#deletes all the records.
+cypherDel <- "match(n) DETACH DELETE n"
+
+```
+
+Saving data in the database:
+```{r include=FALSE}
+#excuting queries
+call_neo4j(con = neo4Con,query =cypherAirline)
+call_neo4j(con = neo4Con,query =cypherAirport)
+call_neo4j(con = neo4Con,query =cypherFlights)
+call_neo4j(con = neo4Con,query =arrival_rel)
+call_neo4j(con = neo4Con,query =depart_rel)
+
+
+```
+
+
+###Graph Preparation
+
+In this step the querie are defined to retrieve data from the graph database.
+```{r}
+#seleting each flight node
+flight_nodes <- call_neo4j(con = neo4Con,query ="match(a3:flight) return a3.flight_no as id,a3.flight_no as label") 
+
+#converting flight node to dataframe
+flight_nodes <- flight_nodes %>% as.data.frame() %>% mutate(color="#E17575")
+names(flight_nodes) <- c("id","label","color")
+
+#seleting each airport node
+airport_nodes <- call_neo4j(con = neo4Con,query ="match(a2:airport) return a2.code as code, a2.code as label")
+
+#converting airport node to dataframe
+airport_nodes <- airport_nodes %>% as.data.frame() %>% mutate(color="#685EEF")
+names(airport_nodes) <- c("id","label","color")
+
+#combining dataframe for graphing
+final_node <- rbind(flight_nodes,airport_nodes)
+
+
+edgesTo <- call_neo4j(con = neo4Con,query ="match(a3)-[r:arrives]->(a2) return a3.flight_no as from,a3.destination as to, type(r) as label")
+
+edgesFrom <- call_neo4j(con = neo4Con,query ="match(a3)-[r:departs]->(a2) return a3.flight_no as from,a3.origin as to, type(r) as label")
+
+#converting relationship data to a dataframe.
+edgesTo <- edgesTo %>% as.data.frame() 
+names(edgesTo) <- c("from","to","label")
+edgesFrom <- edgesFrom %>% as.data.frame() 
+names(edgesFrom) <- c("from","to","label") 
+
+#combining dataframe for graphing
+edge_final <- rbind(edgesTo,edgesFrom)
+
+```
+
+###Network Graph
+
+This graph displays the relationship between nodes. where node in numbers represent flight numbers and the three digit codes for blue nodes represent origin and destination airports for different flights.
+
+Note: you can use you mouse to zoom in and out as well as manipulating nodes.
+```{r,fig.width=10}
+
+visNetwork(nodes = unique(final_node),edges = edge_final)
+
+```
+
+
+###Delete All Data
+
+
+This line is optional.
+```{r }
+#uncomment this line if you want to wipe out the database
+#call_neo4j(con = neo4Con,query =cypherDel)
+
+```
+### SQL vs NoSQl Comparative
+
+The main advantage of using NoSQL is that the schema doesn’t have to change and the data types do not have to be consistent. In so doing, it is easy to scale. Also, one can avoid large sparse tables since we are always using key-value pairs where the value is not NULL. In addition, we can avoid the need for joins if we properly set up the database structure, since information can be nested in the JSON style of documents or in a node-relationship attribute format like in neo4j. Finally, the data can be “sharded”, that is, split onto many machines to increase read and write speeds and to solve data storage limitations. 
+
+A disadvantage that I see compared to SQL Databases is that it is harder to have a quick and complete overview of the data, principally in a graph database. We cannot directly see what the data attributes looks like.For instance, in this neo4j database, displaying a large set of record consumes a lot of memory and the nodes and their relationships does not give you a quick overview of the data since data is scattered around a visual plane with its relationships, which make it harder to track a group of related nodes without filtering the data.Finally, there is a lot of upfront work to convert data from the traditional tabular format into the key-value pair format. For example, in order to move the data from the flights database, I had to convert the data to csv files and then insert it into the database thanks to a feaure present in neo4j that allows easy parsing of csv files. Otherwise, I would have been to transform the sql data to a key-value format and insert it row by row using a loop.

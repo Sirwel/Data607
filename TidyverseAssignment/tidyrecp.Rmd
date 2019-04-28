@@ -1,0 +1,128 @@
+---
+title: "Tidyverse Assigment"
+author: "Lewris Mota"
+date: "April 27, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+
+Purrr enhances R’s functional programming (FP) toolkit by providing a complete and consistent set of tools for working with functions and vectors. The family of map() functions which allow you to replace many for loops with code that is both more succinct and easier to read. 
+
+In order to play with purrr, a nested dataframe is created:
+```{r}
+iris_dt <- iris %>% group_by(Species) %>% nest()
+iris_dt 
+```
+After grouping the data by species, the nest function groups the data present in data frame according to a field (in this case species) and stores it in a new data frame that contains a field that also stores a data frame with the data related to a certain group.
+
+###Map functions
+
+Map functions are used to apply a function to dataframe columns, list or vectors. If we use dataframes, we need to specify the column we are going to need as an input for the function.
+
+
+The first function is map which applies any function to each element of a list or vector and returns a list with the output of that function.
+
+```{r}
+
+map <- map(iris$Species,is.numeric)
+map[1:3]
+```
+
+
+
+The second function is map2 which applies any function to each element of a pair of list or vectors and returns a list with the changes made by that function. In this line, we are adding petal.length and petal.width.
+```{r}
+map2 <- map2(iris$Petal.Length,iris$Petal.Width,sum) 
+map2[1:3]
+```
+
+
+The third function is pmap which applies any function to a list of vectors of any length and returns a list with the changes made by that function. In this line, we are adding four parameters.
+```{r}
+pmap <- pmap(list(iris$Sepal.Length,iris$Sepal.Width,iris$Petal.Width,iris$Petal.Length),sum)
+pmap[1:5]
+```
+
+The map functions can be used to return a vector of the expected type. 
+
+map_dbl() makes a double vector.
+
+map_chr() makes a character vector.
+
+map_lgl() makes a logical vector.
+
+map_int() makes a integer vector.
+
+***Examples:***
+
+map_int() makes a integer vector.
+```{r}
+#returns the leng of the first column of the first nested dataframe as a int vector
+map_int(iris_dt$data[[1]][1:3],length) %>% str()
+
+```
+
+
+map_chr() makes a character vector.
+```{r}
+map_chr(iris[1:4], class) %>% str() # Returns a character vector with the name of the data type
+```
+
+
+###Working with lists
+
+Pluck selects an element by name(or rown name) or index.
+```{r}
+iris$Species %>% pluck(51)
+```
+
+The keep function keeps all the elements in a list or vector that meet an specific criteria.where the first argument is a column of a dataset and the second argument is the condition to be tested. In this case, this line checks that the petal length is grater than 6 cm.
+```{r}
+
+keep(iris$Sepal.Length,(iris$Petal.Length>6))
+
+```
+
+
+Discard function allows you discard all the data with a specific criteria. The result will be a vector that contains all the fields except those with the specified value.
+```{r}
+discarded_dt <- discard( iris$Species, iris$Species == "versicolor")
+discarded_dt
+```
+
+
+###Summarise list
+
+has_element detects if an element exist in a list or vector and then returns true or false. This can be used as an if statement substitute in some occasions.
+```{r}
+has_element(iris$Sepal.Width,3.5)
+```
+
+Every function checks that all the element in a vector pass a test, which means that the evaluation against a condition return a true value for each element.
+```{r}
+test <- c("hello", 3)
+test2 <- c(1:10)
+```
+***Are all the elements numeric?***
+```{r}
+every(test,is.numeric)
+
+```
+***False because there is a character element in the vector.***
+
+***Are all the elements numeric for test2?***
+```{r}
+every(test2,is.numeric)
+```
+True because the secuence only contains numbers.
+
+
+
+
+
+
